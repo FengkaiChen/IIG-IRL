@@ -19,9 +19,10 @@ class SimLoader(Dataset):
         assert grid_size % 2 == 0, "grid size must be even number"
         self.grid_size = grid_size
         if train:
-            self.data_dir = datadir + 'train_data/'
+            self.data_dir = datadir + 'data_v/'
+            # self.data_dir = datadir + 'train_data/'
         else:
-            self.data_dir = datadir + 'test_data/'
+            self.data_dir = datadir + 'data_vt/'
         items = os.listdir(self.data_dir)
         self.data_list = []
         for item in items:
@@ -41,7 +42,8 @@ class SimLoader(Dataset):
 
     def __getitem__(self, index):
         
-        feat,past_traj,future_traj=np.genfromtxt(self.data_list[index]+"/map.csv"),np.genfromtxt(self.data_list[index]+"/past_traj.csv"),np.genfromtxt(self.data_list[index]+"/future_traj.csv")
+        feat,past_traj,future_traj,average_volume=np.genfromtxt(self.data_list[index]+"/map.csv"),np.genfromtxt(self.data_list[index]+"/past_traj.csv"),np.genfromtxt(self.data_list[index]+"/future_traj.csv"),np.genfromtxt(self.data_list[index]+"/average_volume.csv")
+        # feat,past_traj,future_traj=np.genfromtxt(self.data_list[index]+"/map.csv"),np.genfromtxt(self.data_list[index]+"/past_traj.csv"),np.genfromtxt(self.data_list[index]+"/future_traj.csv")
         feat=feat.reshape((1,self.grid_size,self.grid_size))
         normalization = 0.5 * self.grid_size
         feat = np.vstack((feat, np.expand_dims(self.delta_x_layer.copy() / normalization, axis=0)))
@@ -51,9 +53,9 @@ class SimLoader(Dataset):
 
         future_traj = self.auto_pad_future(future_traj[:, :2])
         past_traj = self.auto_pad_past(past_traj[:, :2])
+    
 
-        return feat, past_traj, future_traj
-
+        return feat, past_traj, future_traj,average_volume
     def __len__(self):
         return len(self.data_list)
         
