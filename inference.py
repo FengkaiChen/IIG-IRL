@@ -7,6 +7,9 @@ import sensor_msgs.point_cloud2 as pc2
 import ros_numpy
 import numpy as np
 from network.res_unet import ResUnet
+import mdp.offroad_grid as offroad_grid
+
+
 def genGridmap(pcd,grid_size):
     grid=torch.zeros((grid_size,grid_size))
     scalex=float(grid_size-1)/float(max(pcd[:,0])-min(pcd[:,0]))
@@ -36,7 +39,13 @@ def genlocalMap(grid_pcd,center,local_size):
     local_map[local_map<=1]=0
     local_map[local_map>1]=1
     return local_map
- 
+def find_policy(r_var,n_sample,model):
+    for i in range(n_sample):
+        r_sample = r_var[i].data.numpy().squeeze().reshape(n_states)
+    values_sample = model.find_optimal_value(r_sample, 0.1)
+    policy = model.find_stochastic_policy(values_sample, r_sample)
+    svf=model.find_svf_demo(policy,40)
+    return policy,svf
 
 def callback(data):
     pc = ros_numpy.numpify(data)
@@ -48,14 +57,18 @@ def callback(data):
     grid_pcd,_,_,_,_=genGridmap(p,grid_size)
     grid_pcd=grid_pcd.reshape((1,1,grid_size,grid_size))
     reward=net(grid_pcd)
-    print(reward.shape)
+    policy,svf=find_policy(reward,1,model)
+    print(svf.shape)
 
 if __name__ == "__main__":
     # pre_train_weight="step90-nll0.9690091423449481-loss0.5284339189529419-total1.4974430799484253.pth"
     pre_train_weight = None
     net=ResUnet(channel=1)
     grid_size=80
-
+    discount = 0.9
+    model = offroad_grid.OffroadGrid(grid_size, discount)
+    n_states = model.n_states
+    n_actions = model.n_actions
     if pre_train_weight is None:
        pass
     else:
