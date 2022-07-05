@@ -8,7 +8,8 @@ import ros_numpy
 import numpy as np
 from network.res_unet import ResUnet
 import mdp.offroad_grid as offroad_grid
-
+from torch.utils.data import DataLoader
+import matplotlib.pyplot as plt
 
 def genGridmap(pcd,grid_size):
     grid=torch.zeros((grid_size,grid_size))
@@ -55,25 +56,31 @@ def callback(data):
     points[:,2]=pc['z']
     p = (np.array(points, dtype=np.float32))
     grid_pcd,_,_,_,_=genGridmap(p,grid_size)
-    grid_pcd=grid_pcd.reshape((1,1,grid_size,grid_size))
+    grid_pcd=torch.cat((grid_pcd,torch.zeros_like(grid_pcd),torch.zeros_like(grid_pcd)))
+    grid_pcd=grid_pcd.reshape((1,3,grid_size,grid_size))
     reward=net(grid_pcd)
     policy,svf=find_policy(reward,1,model)
-    print(svf.shape)
+    svf[svf>0]+=1
+    svf=svf.reshape((80,80))
+    np.savetxt("/home/fengkai/ROB590/minicheetah-traversability-irl/scripts/svf/svf.csv",svf)
+    # policy,svf=find_policy(reward,1,model)
 
 if __name__ == "__main__":
-    # pre_train_weight="step90-nll0.9690091423449481-loss0.5284339189529419-total1.4974430799484253.pth"
-    pre_train_weight = None
-    net=ResUnet(channel=1)
+    exp="Matterport_rank"
+    resume="step90-nll0.9690091423449481-loss0.5284339189529419-total1.4974430799484253.pth"
+    # pre_train_weight = None
+
+    net=ResUnet(channel=3)
     grid_size=80
     discount = 0.9
     model = offroad_grid.OffroadGrid(grid_size, discount)
     n_states = model.n_states
     n_actions = model.n_actions
-    if pre_train_weight is None:
-       pass
-    else:
-        pre_train_check = torch.load(os.path.join('exp', pre_train_weight))
-        net.init_with_pre_train(pre_train_check)
+
+
+    checkpoint = torch.load(os.path.join('exp', exp, resume))
+    net.load_state_dict(checkpoint['net_state'])
+    net.eval()
     
     rospy.init_node('listener', anonymous=True)
     rospy.Subscriber("/registered_scan", PointCloud2, callback)
